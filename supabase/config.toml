@@ -1,0 +1,6 @@
+project_id = "wybkixbkhgfqcmmrczbl"
+
+[functions.analyze-document]
+verify_jwt = true
+# environment_variables should be set via Supabase Dashboard or .env file
+# environment_variables = { AI_API_KEY = "your-api-key-here" }
