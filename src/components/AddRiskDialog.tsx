@@ -23,6 +23,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Loader2 } from "lucide-react";
 import { z } from "zod";
+import { RiskMatrix } from "@/components/RiskMatrix";
 
 // Validering for risiko-skjema
 const riskSchema = z.object({
@@ -247,65 +248,30 @@ export function AddRiskDialog({ onRiskAdded }: AddRiskDialogProps) {
             )}
           </div>
 
-          {/* Sannsynlighet og konsekvens - side ved side */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Sannsynlighet-dropdown */}
-            <div className="space-y-2">
-              <Label htmlFor="probability">
-                Sannsynlighet <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={formData.probability}
-                onValueChange={(value) =>
-                  setFormData({
-                    ...formData,
-                    probability: value as RiskFormData["probability"],
-                  })
-                }
-              >
-                <SelectTrigger id="probability">
-                  <SelectValue placeholder="Velg sannsynlighet..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="lav">Lav</SelectItem>
-                  <SelectItem value="middels">Middels</SelectItem>
-                  <SelectItem value="hoy">Høy</SelectItem>
-                  <SelectItem value="kritisk">Kritisk</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.probability && (
-                <p className="text-sm text-destructive">{errors.probability}</p>
-              )}
-            </div>
-
-            {/* Konsekvens-dropdown */}
-            <div className="space-y-2">
-              <Label htmlFor="consequence">
-                Konsekvens <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={formData.consequence}
-                onValueChange={(value) =>
-                  setFormData({
-                    ...formData,
-                    consequence: value as RiskFormData["consequence"],
-                  })
-                }
-              >
-                <SelectTrigger id="consequence">
-                  <SelectValue placeholder="Velg konsekvens..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="lav">Lav</SelectItem>
-                  <SelectItem value="middels">Middels</SelectItem>
-                  <SelectItem value="hoy">Høy</SelectItem>
-                  <SelectItem value="kritisk">Kritisk</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.consequence && (
-                <p className="text-sm text-destructive">{errors.consequence}</p>
-              )}
-            </div>
+          {/* Risikomatrise for sannsynlighet og konsekvens */}
+          <div className="space-y-2">
+            <Label>
+              Sannsynlighet og konsekvens <span className="text-destructive">*</span>
+            </Label>
+            <p className="text-sm text-muted-foreground mb-2">
+              Klikk på en celle i matrisen for å velge sannsynlighet og konsekvens
+            </p>
+            <RiskMatrix
+              probability={formData.probability}
+              consequence={formData.consequence}
+              onSelect={(probability, consequence) =>
+                setFormData({
+                  ...formData,
+                  probability: probability as RiskFormData["probability"],
+                  consequence: consequence as RiskFormData["consequence"],
+                })
+              }
+            />
+            {(errors.probability || errors.consequence) && (
+              <p className="text-sm text-destructive">
+                {errors.probability || errors.consequence}
+              </p>
+            )}
           </div>
 
           {/* Risikobehandlings-strategi */}
