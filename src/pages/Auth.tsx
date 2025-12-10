@@ -17,10 +17,11 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 export default function Auth() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<"login" | "2fa">("login");
+  const [step, setStep] = useState<"login" | "2fa" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [forgotEmail, setForgotEmail] = useState("");
 
   // Handler: logg inn med e-post og passord
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -159,12 +160,9 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
 
-    const formData = new FormData(e.currentTarget);
-    const emailValue = formData.get("email") as string;
+    const redirectUrl = `${window.location.origin}/auth`;
 
-    const redirectUrl = `${window.location.origin}/auth/reset-password`;
-
-    const { error } = await supabase.auth.resetPasswordForEmail(emailValue, {
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
       redirectTo: redirectUrl,
     });
 
@@ -179,10 +177,63 @@ export default function Auth() {
         title: "E-post sendt",
         description: "Sjekk din e-post for å tilbakestille passord.",
       });
+      setStep("login");
+      setForgotEmail("");
     }
 
     setLoading(false);
   };
+
+  // Render glemt passord-steg
+  if (step === "forgot") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <Shield className="h-8 w-8 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl font-bold">Glemt passord</CardTitle>
+            <CardDescription>
+              Skriv inn din e-postadresse for å tilbakestille passordet
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="forgot-email">E-post</Label>
+                <Input
+                  id="forgot-email"
+                  type="email"
+                  placeholder="din@epost.no"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Sender..." : "Send tilbakestillingslenke"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  setStep("login");
+                  setForgotEmail("");
+                }}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Tilbake til innlogging
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Render 2FA-steg
   if (step === "2fa") {
@@ -269,7 +320,17 @@ export default function Auth() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="signin-password">Passord</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="signin-password">Passord</Label>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="px-0 h-auto font-normal text-sm text-muted-foreground"
+                  onClick={() => setStep("forgot")}
+                >
+                  Glemt passord?
+                </Button>
+              </div>
               <Input
                 id="signin-password"
                 name="password"
