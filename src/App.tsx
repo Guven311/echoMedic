@@ -15,6 +15,7 @@ import Verktoy from "./pages/Verktoy";
 import Rapporter from "./pages/Rapporter";
 import Onboarding from "./pages/Onboarding";
 import Auth from "./pages/Auth";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 import Profil from "./pages/Profil";
 
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/rapporter" element={<Layout><Rapporter /></Layout>} />
             <Route path="/onboarding" element={<Layout><Onboarding /></Layout>} />
             <Route path="/profil" element={<Layout><Profil /></Layout>} />
+            <Route path="/admin" element={<Layout><Admin /></Layout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

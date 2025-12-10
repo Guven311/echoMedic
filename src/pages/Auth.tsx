@@ -8,89 +8,146 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // Importer toast-hook for meldinger
 import { toast } from "@/hooks/use-toast";
-import { Shield } from "lucide-react";
+import { Shield, ArrowLeft } from "lucide-react";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
-// Auth-side med innlogging, registrering og passord-gjenoppretting
+// Auth-side med innlogging og 2FA
 export default function Auth() {
   const navigate = useNavigate();
-  // Loading-state for å deaktivere knapper mens vi venter på server
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<"login" | "2fa">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [twoFactorCode, setTwoFactorCode] = useState("");
 
   // Handler: logg inn med e-post og passord
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
-    // Hent form-data fra skjemaet
     const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
+    const emailValue = formData.get("email") as string;
+    const passwordValue = formData.get("password") as string;
 
-    // Forsøk innlogging via Supabase
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    setEmail(emailValue);
+    setPassword(passwordValue);
+
+    // Først sjekk om dette er admin - da skipper vi 2FA
+    if (emailValue.toLowerCase() === "admin@admin.no") {
+      // Admin logger direkte inn uten 2FA
+      const { error } = await supabase.auth.signInWithPassword({
+        email: emailValue,
+        password: passwordValue,
+      });
+
+      if (error) {
+        toast({
+          title: "Innlogging feilet",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Velkommen, Administrator!",
+          description: "Du er nå logget inn.",
+        });
+        navigate("/");
+      }
+      setLoading(false);
+      return;
+    }
+
+    // For vanlige brukere: Verifiser passord først
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: emailValue,
+      password: passwordValue,
     });
 
-    // Håndter resultat
-    if (error) {
+    if (authError) {
       toast({
         title: "Innlogging feilet",
-        description: error.message,
+        description: authError.message,
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Velkommen!",
-        description: "Du er nå logget inn.",
+      setLoading(false);
+      return;
+    }
+
+    // Logg ut midlertidig - vi krever 2FA
+    await supabase.auth.signOut();
+
+    // Send 2FA-kode
+    try {
+      const response = await supabase.functions.invoke("send-2fa-code", {
+        body: { email: emailValue },
       });
-      // Naviger til dashboard når innlogging lykkes
-      navigate("/");
+
+      if (response.error) {
+        throw new Error(response.error.message || "Kunne ikke sende 2FA-kode");
+      }
+
+      toast({
+        title: "Kode sendt",
+        description: "Vi har sendt en innloggingskode til din e-post.",
+      });
+
+      setStep("2fa");
+    } catch (error) {
+      toast({
+        title: "Feil",
+        description: "Kunne ikke sende 2FA-kode. Prøv igjen.",
+        variant: "destructive",
+      });
     }
 
     setLoading(false);
   };
 
-  // Handler: registrer ny bruker
-  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-
-    // Hent form-verdier
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
-    const fullName = formData.get("fullName") as string;
-
-    // URL for e-post-bekreftelse
-    const redirectUrl = `${window.location.origin}/`;
-
-    // Opprett ny bruker i Supabase
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          full_name: fullName,
-        },
-      },
-    });
-
-    // Vis resultat
-    if (error) {
+  // Handler: verifiser 2FA-kode
+  const handleVerify2FA = async () => {
+    if (twoFactorCode.length !== 6) {
       toast({
-        title: "Registrering feilet",
-        description: error.message,
+        title: "Ugyldig kode",
+        description: "Vennligst skriv inn alle 6 sifrene.",
         variant: "destructive",
       });
-    } else {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Verifiser koden
+      const response = await supabase.functions.invoke("verify-2fa-code", {
+        body: { email, code: twoFactorCode },
+      });
+
+      if (response.error || response.data?.error) {
+        throw new Error(response.data?.error || "Ugyldig kode");
+      }
+
+      // Kode verifisert - logg inn brukeren
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
       toast({
-        title: "Registrering vellykket!",
-        description: "Du kan nå logge inn med din nye konto.",
+        title: "Velkommen!",
+        description: "Du er nå logget inn.",
+      });
+      navigate("/");
+    } catch (error) {
+      toast({
+        title: "Feil",
+        description: error instanceof Error ? error.message : "Ugyldig eller utløpt kode",
+        variant: "destructive",
       });
     }
 
@@ -102,19 +159,15 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
 
-    // Hent e-post fra skjema
     const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
+    const emailValue = formData.get("email") as string;
 
-    // URL for tilbakestilling av passord
     const redirectUrl = `${window.location.origin}/auth/reset-password`;
 
-    // Send tilbakestillings-e-post
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(emailValue, {
       redirectTo: redirectUrl,
     });
 
-    // Vis resultat
     if (error) {
       toast({
         title: "Feil",
@@ -131,143 +184,105 @@ export default function Auth() {
     setLoading(false);
   };
 
-  // Render: Auth-skjerm med kort for innlogging/registrering
+  // Render 2FA-steg
+  if (step === "2fa") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <Shield className="h-8 w-8 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl font-bold">To-faktor autentisering</CardTitle>
+            <CardDescription>
+              Skriv inn koden vi sendte til {email}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-center">
+              <InputOTP 
+                maxLength={6} 
+                value={twoFactorCode}
+                onChange={(value) => setTwoFactorCode(value)}
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+            <Button 
+              className="w-full" 
+              onClick={handleVerify2FA}
+              disabled={loading || twoFactorCode.length !== 6}
+            >
+              {loading ? "Verifiserer..." : "Bekreft kode"}
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                setStep("login");
+                setTwoFactorCode("");
+              }}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Tilbake til innlogging
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Render innlogging
   return (
-    // Bakgrunn: gradient og sentrer innhold
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
-      {/* Kort som inneholder alle auth-faner */}
       <Card className="w-full max-w-md">
-        {/* Header med logo og beskrivelse */}
         <CardHeader className="space-y-1 text-center">
-          {/* Ikonbeholder */}
           <div className="flex justify-center mb-4">
             <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
               <Shield className="h-8 w-8 text-primary" />
             </div>
           </div>
-          {/* Tittel */}
           <CardTitle className="text-2xl font-bold">EchoMedic</CardTitle>
-          {/* Undertittel */}
           <CardDescription>
             Kvalitets- og samsvarsstyringssystem
           </CardDescription>
         </CardHeader>
-        {/* Innhold: faner for innlogging, registrering, glemt passord */}
         <CardContent>
-          {/* Fane-system */}
-          <Tabs defaultValue="signin" className="w-full">
-            {/* Fane-knapper */}
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="signin">Logg inn</TabsTrigger>
-              <TabsTrigger value="signup">Registrer</TabsTrigger>
-              <TabsTrigger value="forgot">Glemt passord</TabsTrigger>
-            </TabsList>
-
-            {/* Fane 1: Innlogging */}
-            <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4">
-                {/* E-post-felt */}
-                <div className="space-y-2">
-                  <Label htmlFor="signin-email">E-post</Label>
-                  <Input
-                    id="signin-email"
-                    name="email"
-                    type="email"
-                    placeholder="din@epost.no"
-                    required
-                  />
-                </div>
-                {/* Passord-felt */}
-                <div className="space-y-2">
-                  <Label htmlFor="signin-password">Passord</Label>
-                  <Input
-                    id="signin-password"
-                    name="password"
-                    type="password"
-                    placeholder="••••••••"
-                    required
-                    minLength={8}
-                  />
-                </div>
-                {/* Innlogging-knapp */}
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Logger inn..." : "Logg inn"}
-                </Button>
-              </form>
-            </TabsContent>
-
-            {/* Fane 2: Registrering */}
-            <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
-                {/* Navn-felt */}
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Fullt navn</Label>
-                  <Input
-                    id="signup-name"
-                    name="fullName"
-                    type="text"
-                    placeholder="Ola Nordmann"
-                    required
-                  />
-                </div>
-                {/* E-post-felt */}
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">E-post</Label>
-                  <Input
-                    id="signup-email"
-                    name="email"
-                    type="email"
-                    placeholder="din@epost.no"
-                    required
-                  />
-                </div>
-                {/* Passord-felt med minimumsvaring */}
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Passord</Label>
-                  <Input
-                    id="signup-password"
-                    name="password"
-                    type="password"
-                    placeholder="••••••••"
-                    required
-                    minLength={8}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Minimum 8 tegn
-                  </p>
-                </div>
-                {/* Registrering-knapp */}
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Registrerer..." : "Registrer konto"}
-                </Button>
-              </form>
-            </TabsContent>
-
-            {/* Fane 3: Glemt passord */}
-            <TabsContent value="forgot">
-              <form onSubmit={handleForgotPassword} className="space-y-4">
-                {/* E-post-felt for passord-tilbakestilling */}
-                <div className="space-y-2">
-                  <Label htmlFor="forgot-email">E-post</Label>
-                  <Input
-                    id="forgot-email"
-                    name="email"
-                    type="email"
-                    placeholder="din@epost.no"
-                    required
-                  />
-                  {/* Hjelpe-tekst */}
-                  <p className="text-xs text-muted-foreground">
-                    Vi sender deg en e-post med instruksjoner for å tilbakestille passordet ditt.
-                  </p>
-                </div>
-                {/* Knapp for å sende tilbakestillingslenke */}
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Sender..." : "Send tilbakestillingslenke"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+          <form onSubmit={handleSignIn} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="signin-email">E-post</Label>
+              <Input
+                id="signin-email"
+                name="email"
+                type="email"
+                placeholder="din@epost.no"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="signin-password">Passord</Label>
+              <Input
+                id="signin-password"
+                name="password"
+                type="password"
+                placeholder="••••••••"
+                required
+                minLength={8}
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Logger inn..." : "Logg inn"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>
