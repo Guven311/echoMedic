@@ -5,9 +5,9 @@ const Index = () => {
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="text-center">
         {/* Tittel */}
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
+        <h1 className="mb-4 text-4xl font-bold">Velkommen til EchoMedic</h1>
         {/* Undertittel */}
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+        <p className="text-xl text-muted-foreground">Ditt kvalitets- og samsvarsstyringssystem</p>
       </div>
     </div>
   );

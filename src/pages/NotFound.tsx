@@ -19,10 +19,10 @@ const NotFound = () => {
         {/* Feilkode */}
         <h1 className="mb-4 text-4xl font-bold">404</h1>
         {/* Feilmelding */}
-        <p className="mb-4 text-xl text-muted-foreground">Oops! Page not found</p>
+        <p className="mb-4 text-xl text-muted-foreground">Oops! Siden ble ikke funnet</p>
         {/* Lenke tilbake til hjem */}
         <a href="/" className="text-primary underline hover:text-primary/90">
-          Return to Home
+          Tilbake til forsiden
         </a>
       </div>
     </div>
