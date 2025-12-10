@@ -1,5 +1,3 @@
-// Enkel JSON-typ som brukes i databasen (rekursiv)
-// Kort kommentar: dette er generisk JSON-innhold, f.eks. for metadata-felt
 export type Json =
   | string
   | number
@@ -8,15 +6,12 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-// Hoved-typ for database-skjemaet som Supabase bruker.
-// Denne filen er auto-generert fra Supabase schema og beskriver
-// tabeller, rader, Insert/Update-typer, relasjoner, funksjoner og enums.
 export type Database = {
-  // Intern bruk: versjon/metadata for Supabase klient-typing
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
-  // public schema
   public: {
     Tables: {
       audit_logs: {
@@ -590,6 +585,33 @@ export type Database = {
           },
         ]
       }
+      two_factor_codes: {
+        Row: {
+          code: string
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          verified: boolean | null
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          verified?: boolean | null
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          verified?: boolean | null
+        }
+        Relationships: []
+      }
       user_course_progress: {
         Row: {
           completed_at: string | null
@@ -657,6 +679,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_2fa_codes: { Args: never; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -665,8 +688,6 @@ export type Database = {
         Returns: boolean
       }
     }
-    // Enums i databasen — bruk disse typene for sikre streng-verdier
-    // NB: enum-verdiene er på norsk her, behold dem slik de er for validering
     Enums: {
       app_role: "admin" | "bruker" | "revisor"
       compliance_status: "implementert" | "pagaar" | "ikke_startet"
@@ -680,11 +701,8 @@ export type Database = {
   }
 }
 
-// Hjelpe-type: fjern interne felt for mer praktisk bruk
-// Bruk dette når du lager generiske typer eller helper-funksjoner.
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-// DefaultSchema er `public` her — praktisk alias for generiske typer
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
@@ -800,7 +818,6 @@ export type CompositeTypes<
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 
-// Konstanter som gjenspeiler enums — nyttig for runtime validering eller UI
 export const Constants = {
   public: {
     Enums: {
