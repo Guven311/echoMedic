@@ -1,6 +1,9 @@
 // Importerer navigasjons- og ruting-komponenter
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 // Importerer ikoner fra lucide-react
 import {
   LayoutDashboard,
@@ -12,6 +15,7 @@ import {
   BarChart3,
   Shield,
   GraduationCap,
+  Users,
 } from "lucide-react";
 
 import {
@@ -43,6 +47,36 @@ export function AppSidebar() {
   // Henter sidebar åpen-tilstand og nåværende lokasjon
   const { open } = useSidebar();
   const location = useLocation();
+  const { user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Sjekk admin-tilgang
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (!user) {
+        setIsAdmin(false);
+        return;
+      }
+
+      // Admin e-post
+      if (user.email === "admin@admin.no") {
+        setIsAdmin(true);
+        return;
+      }
+
+      // Sjekk rolle i database
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .single();
+
+      setIsAdmin(!!data);
+    };
+
+    checkAdmin();
+  }, [user]);
 
   // Sjekker om en rute er aktiv
   const isActive = (path: string) => {
@@ -77,6 +111,18 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              
+              {/* Admin-lenke - kun synlig for administratorer */}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isActive("/admin")}>
+                    <NavLink to="/admin" className="flex items-center gap-3">
+                      <Users className="h-4 w-4" />
+                      <span>Administrasjon</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
