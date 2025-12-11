@@ -14,30 +14,59 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    // Get admin credentials from secrets (not hardcoded)
+    const adminEmail = Deno.env.get("ADMIN_EMAIL");
+    const adminPassword = Deno.env.get("ADMIN_PASSWORD");
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    // Validate that secrets are configured
+    if (!adminEmail || !adminPassword) {
+      console.error("Missing required secrets: ADMIN_EMAIL and/or ADMIN_PASSWORD");
+      return new Response(
+        JSON.stringify({ 
+          error: "Admin-legitimasjoner er ikke konfigurert. Kontakt systemadministrator.",
+          details: "Missing ADMIN_EMAIL or ADMIN_PASSWORD secrets"
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
+    }
+
+    // Validate password strength
+    if (adminPassword.length < 12) {
+      console.error("Admin password does not meet minimum security requirements");
+      return new Response(
+        JSON.stringify({ 
+          error: "Admin-passord oppfyller ikke sikkerhetskravene. Minimum 12 tegn kreves."
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
       },
     });
 
-    const adminEmail = "admin@admin.no";
-    const adminPassword = "12345678@";
+    console.log("Checking for existing admin user...");
 
-    // Sjekk om admin allerede eksisterer
-    const { data: existingUsers } = await supabase.auth.admin.listUsers();
-    const adminExists = existingUsers?.users?.some(u => u.email === adminEmail);
+    // Check if admin user already exists
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const existingAdmin = existingUsers?.users?.find(u => u.email === adminEmail);
 
-    if (adminExists) {
+    if (existingAdmin) {
+      console.log("Admin user already exists");
       return new Response(
-        JSON.stringify({ message: "Admin-konto eksisterer allerede" }),
+        JSON.stringify({ message: "Admin-bruker eksisterer allerede", userId: existingAdmin.id }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
 
-    // Opprett admin-bruker
-    const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+    console.log("Creating new admin user...");
+
+    // Create admin user
+    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: adminEmail,
       password: adminPassword,
       email_confirm: true,
@@ -47,29 +76,38 @@ serve(async (req) => {
     });
 
     if (createError) {
+      console.error("Error creating admin user:", createError);
       throw createError;
     }
 
-    // Gi admin-rolle
-    if (newUser?.user) {
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .upsert({
-          user_id: newUser.user.id,
-          role: "admin",
-        }, { onConflict: "user_id" });
+    console.log("Admin user created, assigning admin role...");
 
-      if (roleError) {
-        console.error("Feil ved tildeling av admin-rolle:", roleError);
-      }
+    // Assign admin role
+    const { error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .upsert({ 
+        user_id: newUser.user.id, 
+        role: "admin" 
+      }, { 
+        onConflict: "user_id" 
+      });
+
+    if (roleError) {
+      console.error("Error assigning admin role:", roleError);
+      throw roleError;
     }
 
+    console.log("Admin initialization completed successfully");
+
     return new Response(
-      JSON.stringify({ message: "Admin-konto opprettet", userId: newUser?.user?.id }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      JSON.stringify({ 
+        message: "Admin-bruker opprettet", 
+        userId: newUser.user.id 
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 201 }
     );
   } catch (error: unknown) {
-    console.error("Feil:", error);
+    console.error("Feil ved admin-initialisering:", error);
     const message = error instanceof Error ? error.message : "Ukjent feil";
     return new Response(
       JSON.stringify({ error: message }),
