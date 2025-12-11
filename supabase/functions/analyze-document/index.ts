@@ -1,11 +1,27 @@
 // @ts-ignore - Deno environment
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 }
+
+// Input validation schema
+const analyzeDocumentSchema = z.object({
+  filePath: z.string()
+    .trim()
+    .min(1, { message: "Filsti er påkrevd" })
+    .max(500, { message: "Filsti kan ikke være lengre enn 500 tegn" }),
+  fileName: z.string()
+    .trim()
+    .min(1, { message: "Filnavn er påkrevd" })
+    .max(255, { message: "Filnavn kan ikke være lengre enn 255 tegn" }),
+  guidelineId: z.string()
+    .uuid({ message: "Ugyldig retningslinje-ID format (må være UUID)" })
+    .optional(),
+});
 
 // @ts-ignore - Deno.serve
 Deno.serve(async (req: Request) => {
@@ -16,11 +32,27 @@ Deno.serve(async (req: Request) => {
   try {
     console.log("Analyze document function called")
 
-    // Parse request
-    const body = await req.json()
-    console.log("Request body:", body)
+    // Parse and validate input
+    const rawInput = await req.json()
+    console.log("Request body received")
 
-    const { filePath, fileName, guidelineId } = body
+    const validationResult = analyzeDocumentSchema.safeParse(rawInput);
+
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => e.message).join(", ");
+      console.error("Valideringsfeil:", errors);
+      return new Response(
+        JSON.stringify({ error: errors }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        }
+      );
+    }
+
+    const { filePath, fileName, guidelineId } = validationResult.data;
+
+    console.log(`Analyzing document: ${fileName} at ${filePath}`);
 
     // Return mock analysis result
     const mockResult = {
@@ -97,7 +129,7 @@ Deno.serve(async (req: Request) => {
       },
     }
 
-    console.log("Returning mock result")
+    console.log("Document analysis completed successfully")
 
     return new Response(JSON.stringify(mockResult), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
