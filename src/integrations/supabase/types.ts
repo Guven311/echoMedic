@@ -676,7 +676,45 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      audit_logs_safe: {
+        Row: {
+          action: string | null
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string | null
+          id: string | null
+          ip_address: string | null
+          new_values: Json | null
+          old_values: Json | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string | null
+          ip_address?: never
+          new_values?: Json | null
+          old_values?: Json | null
+          user_agent?: never
+          user_id?: string | null
+        }
+        Update: {
+          action?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string | null
+          ip_address?: never
+          new_values?: Json | null
+          old_values?: Json | null
+          user_agent?: never
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       cleanup_expired_2fa_codes: { Args: never; Returns: undefined }
