@@ -35,51 +35,7 @@ export default function Auth() {
     setEmail(emailValue);
     setPassword(passwordValue);
 
-    // Først sjekk om dette er admin - da skipper vi 2FA
-    if (emailValue.toLowerCase() === "admin@admin.no") {
-      // Admin logger direkte inn uten 2FA
-      const { error } = await supabase.auth.signInWithPassword({
-        email: emailValue,
-        password: passwordValue,
-      });
-
-      if (error) {
-        toast({
-          title: "Innlogging feilet",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Velkommen, Administrator!",
-          description: "Du er nå logget inn.",
-        });
-        navigate("/");
-      }
-      setLoading(false);
-      return;
-    }
-
-    // For vanlige brukere: Verifiser passord først
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: emailValue,
-      password: passwordValue,
-    });
-
-    if (authError) {
-      toast({
-        title: "Innlogging feilet",
-        description: authError.message,
-        variant: "destructive",
-      });
-      setLoading(false);
-      return;
-    }
-
-    // Logg ut midlertidig - vi krever 2FA
-    await supabase.auth.signOut();
-
-    // Send 2FA-kode
+    // Send 2FA-kode - backend sjekker om admin skal hoppe over 2FA
     try {
       const response = await supabase.functions.invoke("send-2fa-code", {
         body: { email: emailValue },
@@ -88,6 +44,50 @@ export default function Auth() {
       if (response.error) {
         throw new Error(response.error.message || "Kunne ikke sende 2FA-kode");
       }
+
+      // Sjekk om admin bypassed 2FA (server-side beslutning)
+      if (response.data?.bypass) {
+        // Admin logger direkte inn uten 2FA
+        const { error } = await supabase.auth.signInWithPassword({
+          email: emailValue,
+          password: passwordValue,
+        });
+
+        if (error) {
+          toast({
+            title: "Innlogging feilet",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Velkommen!",
+            description: "Du er nå logget inn.",
+          });
+          navigate("/");
+        }
+        setLoading(false);
+        return;
+      }
+
+      // For vanlige brukere: Verifiser passord først
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: emailValue,
+        password: passwordValue,
+      });
+
+      if (authError) {
+        toast({
+          title: "Innlogging feilet",
+          description: authError.message,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Logg ut midlertidig - vi krever 2FA
+      await supabase.auth.signOut();
 
       toast({
         title: "Kode sendt",
@@ -98,7 +98,7 @@ export default function Auth() {
     } catch (error) {
       toast({
         title: "Feil",
-        description: "Kunne ikke sende 2FA-kode. Prøv igjen.",
+        description: error instanceof Error ? error.message : "Kunne ikke sende 2FA-kode. Prøv igjen.",
         variant: "destructive",
       });
     }

@@ -3,10 +3,6 @@ import { NavLink } from "@/components/NavLink"
 import { useLocation } from "react-router-dom"
 // Importerer auth-hook for å sjekke bruker-rolle
 import { useAuth } from "@/hooks/useAuth"
-// Importerer hooks for state og effects
-import { useEffect, useState } from "react"
-// Importerer Supabase-klient
-import { supabase } from "@/lib/supabase"
 // Importerer ikoner fra lucide-react
 import {
   LayoutDashboard,
@@ -54,38 +50,8 @@ export function AppSidebar() {
   const { open } = useSidebar()
   // Henter nåværende lokasjon (URL-path)
   const location = useLocation()
-  // Henter bruker-data
-  const { user } = useAuth()
-  // State for å sjekke om bruker er admin
-  const [isAdmin, setIsAdmin] = useState(false)
-
-  // Sjekk admin-tilgang når bruker endrer seg
-  useEffect(() => {
-    const checkAdmin = async () => {
-      if (!user) {
-        setIsAdmin(false)
-        return
-      }
-
-      // Sjekk om dette er admin-e-post
-      if (user.email === "admin@admin.no") {
-        setIsAdmin(true)
-        return
-      }
-
-      // Sjekk admin-rolle i database
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .single()
-
-      setIsAdmin(!!data)
-    }
-
-    checkAdmin()
-  }, [user])
+  // Henter bruker-data og admin-status fra auth-hook
+  const { isAdmin } = useAuth()
 
   // Sjekk om en rute er aktiv (brukes for å highlighte meny-element)
   const isActive = (path: string) => {

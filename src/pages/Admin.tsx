@@ -61,7 +61,7 @@ interface UserData {
 // Admin-side: administrer alle brukere i systemet
 export default function Admin() {
   const navigate = useNavigate()
-  const { user, session } = useAuth()
+  const { user, session, isAdmin } = useAuth()
   // State for bruker-liste
   const [users, setUsers] = useState<UserData[]>([])
   // Loading-state mens vi henter brukere
@@ -82,38 +82,26 @@ export default function Admin() {
       return
     }
 
-    // Sjekk admin-tilgang
-    const checkAdmin = async () => {
-      // Sjekk om dette er admin-e-post
-      const isAdminEmail = user.email === "admin@admin.no"
-
-      if (!isAdminEmail) {
-        // Sjekk admin-rolle i database
-        const { data } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .eq("role", "admin")
-          .single()
-
-        // Hvis ikke admin, vis feilmelding og gå tilbake
-        if (!data) {
+    // Vent på at admin-status er sjekket
+    if (!isAdmin) {
+      // Gi litt tid for admin-sjekk å fullføre
+      const timeout = setTimeout(() => {
+        if (!isAdmin) {
           toast({
             title: "Ingen tilgang",
             description: "Du har ikke tilgang til admin-siden.",
             variant: "destructive",
           })
           navigate("/")
-          return
         }
-      }
+      }, 1000)
 
-      // Admin-sjekk OK - hent alle brukere
-      fetchUsers()
+      return () => clearTimeout(timeout)
     }
 
-    checkAdmin()
-  }, [user, navigate])
+    // Admin-sjekk OK - hent alle brukere
+    fetchUsers()
+  }, [user, isAdmin, navigate])
 
   // Hent alle brukere fra backend
   const fetchUsers = async () => {
