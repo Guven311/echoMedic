@@ -44,8 +44,7 @@ serve(async (req) => {
       );
     }
 
-    // Sjekk admin-tilgang
-    const isAdminEmail = currentUser.email === "admin@admin.no";
+    // Sjekk admin-tilgang via database-rolle
     const { data: roleData } = await supabaseClient
       .from("user_roles")
       .select("role")
@@ -53,7 +52,8 @@ serve(async (req) => {
       .eq("role", "admin")
       .single();
 
-    if (!isAdminEmail && !roleData) {
+    if (!roleData) {
+      console.log(`Access denied for user ${currentUser.id} - no admin role found`);
       return new Response(
         JSON.stringify({ error: "Kun admin kan se brukerlisten" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 }
