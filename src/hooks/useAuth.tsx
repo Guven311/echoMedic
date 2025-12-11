@@ -1,69 +1,88 @@
-// Importerer React-hooks og typer fra Supabase
-import { useState, useEffect, createContext, useContext, ReactNode } from "react";
-import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabase";
+// Importerer React Context og hooks
+import {
+  useState,
+  useEffect,
+  createContext,
+  useContext,
+  ReactNode,
+} from "react"
+// Importerer Supabase-typer for bruker- og sesjon-data
+import { User, Session } from "@supabase/supabase-js"
+// Importerer Supabase-klient
+import { supabase } from "@/lib/supabase"
 
-// Type for auth-kontekst som vi deler via React Context
+// Type-definisjon for auth-kontekst
+// Dette er data som gjøres tilgjengelig for hele appen
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
+  user: User | null // Innlogget bruker (null hvis ikke innlogget)
+  session: Session | null // Bruker-sesjon med tokens
+  loading: boolean // Loading-flag mens vi sjekker auth-status
+  signOut: () => Promise<void> // Funksjon for å logge ut
 }
 
-// Oppretter context - default er undefined for å oppdage feil bruk
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Oppretter React Context for auth
+// Default er undefined for å oppdage hvis hook brukes uten Provider
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Provider som pakker appen og gir tilgang til auth-data
+// AuthProvider-komponent som skal pakke hele appen
+// Gjør auth-data tilgjengelig for alle child-komponenter
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Lokalt state for bruker, session og loading-flag
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Lokalt state for bruker-data
+  const [user, setUser] = useState<User | null>(null)
+  // Lokalt state for sesjon (inneholder tokens osv)
+  const [session, setSession] = useState<Session | null>(null)
+  // Loading-flag mens vi sjekker initial auth-status
+  const [loading, setLoading] = useState(true)
 
+  // Effect: subscribe til auth-hendelser og sjekk initial sesjon
   useEffect(() => {
     // onAuthStateChange gir oss realtime oppdateringer når bruker logger inn/ut
     // Vi abonnerer og oppdaterer state når hendelser skjer
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        // Oppdater session og user basert på det Supabase gir oss
-        setSession(session);
-        setUser(session?.user ?? null);
-        // Når vi får en auth-hendelse, er vi ferdig med initial loading
-        setLoading(false);
-      }
-    );
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // Oppdater session og user basert på hendelsen
+      setSession(session)
+      // Hvis sesjon finnes, hent bruker-data - ellers sett null
+      setUser(session?.user ?? null)
+      // Når vi får en auth-hendelse, er vi ferdig med initial loading
+      setLoading(false)
+    })
 
-    // Ved mount sjekker vi om det allerede finnes en sesjon (f.eks. via cookie)
+    // Ved mount sjekker vi om det allerede finnes en sesjon
+    // Dette er viktig hvis bruker har cookie fra tidligere login
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+      setSession(session)
+      setUser(session?.user ?? null)
+      setLoading(false)
+    })
 
     // Cleanup: avregistrer Supabase-abonnementet når komponent unmountes
-    return () => subscription.unsubscribe();
-  }, []);
+    // Ellers får vi memory leaks
+    return () => subscription.unsubscribe()
+  }, [])
 
-  // Enkelt API for å logge ut — kaller Supabase signOut
+  // Funksjon for å logge ut bruker
   const signOut = async () => {
-    await supabase.auth.signOut();
-  };
+    // Kaller Supabase signOut - fjerner sesjon fra browser
+    await supabase.auth.signOut()
+  }
 
-  // Gjør auth-data tilgjengelig for alle children
+  // Gjør auth-data tilgjengelig for alle children via Context
   return (
     <AuthContext.Provider value={{ user, session, loading, signOut }}>
       {children}
     </AuthContext.Provider>
-  );
+  )
 }
 
-// Hook for å konsumere auth-konteksten i komponenter
+// Custom hook for å bruke auth-konteksten i komponenter
+// Brukes som: const { user, session, loading, signOut } = useAuth();
 export function useAuth() {
-  const context = useContext(AuthContext);
+  const context = useContext(AuthContext)
+  // Hvis hook brukes uten AuthProvider, kast feilmelding
   if (context === undefined) {
-    // Hjelpsom feilmelding hvis hook brukes uten Provider
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error("useAuth must be used within an AuthProvider")
   }
-  return context;
+  return context
 }

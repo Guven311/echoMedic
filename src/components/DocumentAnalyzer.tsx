@@ -1,7 +1,8 @@
-// Importerer hooks og UI-komponenter
+// Importerer React-hooks
 import { useState, useRef } from "react"
+// Importerer Supabase-klient
 import { supabase } from "@/lib/supabase"
-// UI komponenter fra shadcn
+// Importerer UI-komponenter fra shadcn
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -17,39 +18,48 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+// Importerer toast-hook for meldinger
 import { useToast } from "@/hooks/use-toast"
+// Importerer ikoner
 import { Upload, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
-// Props for komponenten
+// Props-interface for komponenten
 interface DocumentAnalyzerProps {
+  // Array av guidelines som bruker kan velge fra
   guidelines: Array<{ id: string; code: string; name: string }>
 }
 
-// Struktur for analyse-resultat fra AI
+// Interface for analyse-resultat fra AI
 interface AnalysisResult {
-  score: number
-  summary: string
+  score: number // Compliance-score (0-100)
+  summary: string // Tekstlig oppsummering
   controls: Array<{
-    number: string
-    title: string
-    status: string
-    reason: string
-    suggestions?: string
+    number: string // Kontroll-nummer
+    title: string // Kontroll-tittel
+    status: string // "met", "partial", "not_met"
+    reason: string // Forklaring
+    suggestions?: string // Forslag til forbedring
   }>
 }
 
-// Hovedkomponent for dokumentanalyse
+// Komponent for å analysere dokumenter mot compliance-standarder
+// Bruker AI for å sjekke at dokumenter oppfyller retningslinjer
 export function DocumentAnalyzer({ guidelines }: DocumentAnalyzerProps) {
-  // State for fil, standard og resultater
+  // State for valgt fil
   const [file, setFile] = useState<File | null>(null)
+  // State for valgt standard/guideline
   const [guideline, setGuideline] = useState<string>("")
+  // Loading-state mens analyse kjøres
   const [loading, setLoading] = useState(false)
+  // Analyse-resultat fra backend
   const [result, setResult] = useState<AnalysisResult | null>(null)
+  // Referanse til fil-input element
   const inputRef = useRef<HTMLInputElement>(null)
+  // Toast-hook for varsler
   const { toast } = useToast()
 
-  // Håndterer filvalg fra bruker
+  // Handler: når bruker velger en fil
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (f) {
@@ -62,14 +72,16 @@ export function DocumentAnalyzer({ guidelines }: DocumentAnalyzerProps) {
         })
         return
       }
+      // Lagrer filen i state
       setFile(f)
+      // Fjerner forrige analyseresultat
       setResult(null)
     }
   }
 
-  // Analyserer dokumentet - laster opp og sender til backend
+  // Analyserer dokumentet - laster opp og sender til backend for AI-analyse
   const analyze = async () => {
-    // Validerer at fil og standard er valgt
+    // Validerer at både fil og standard er valgt
     if (!file || !guideline) {
       toast({
         title: "Error",
@@ -92,21 +104,21 @@ export function DocumentAnalyzer({ guidelines }: DocumentAnalyzerProps) {
       const fileName = `${Date.now()}-${file.name}`
       const filePath = `${user.id}/${fileName}`
 
-      // Laster opp fil til Supabase storage
+      // Laster opp fil til Supabase storage (bucket: compliance-documents)
       const { error: uploadErr } = await supabase.storage
         .from("compliance-documents")
         .upload(filePath, file, { upsert: false })
 
       if (uploadErr) throw uploadErr
 
-      // Kaller backend-funksjonen for analyse
+      // Kaller backend Supabase-funksjon for å analysere dokumentet med AI
       const { data, error } = await supabase.functions.invoke(
         "analyze-document",
         {
           body: {
-            filePath,
-            fileName: file.name,
-            guidelineId: guideline,
+            filePath, // Path til filen i storage
+            fileName: file.name, // Original filnavn
+            guidelineId: guideline, // Hvilken guideline å sjekke mot
           },
         }
       )
@@ -118,7 +130,7 @@ export function DocumentAnalyzer({ guidelines }: DocumentAnalyzerProps) {
         throw error
       }
 
-      // Viser resultater hvis analyse var vellykket
+      // Viser resultat hvis analyse var vellykket
       if (data?.analysis_results || data?.data?.analysis_results) {
         const results = data.analysis_results || data.data.analysis_results
         setResult(results)
@@ -133,7 +145,7 @@ export function DocumentAnalyzer({ guidelines }: DocumentAnalyzerProps) {
         throw new Error("Analysis failed - invalid response format")
       }
     } catch (err: any) {
-      // Håndterer feil
+      // Håndterer feil under analyse
       toast({
         title: "Error",
         description: err.message || "Failed",
