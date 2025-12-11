@@ -15,10 +15,10 @@ import { supabase } from "@/lib/supabase"
 import { toast } from "sonner"
 import { SessionWarningDialog } from "@/components/SessionWarningDialog"
 
-// Inaktivitetstid i millisekunder (5 minutter)
-const INACTIVITY_TIMEOUT = 5 * 60 * 1000
-// Advarselstid før utlogging (1 minutt før)
-const WARNING_TIME = 1 * 60 * 1000
+// TESTMODUS: Inaktivitetstid i millisekunder (30 sekunder)
+const INACTIVITY_TIMEOUT = 30 * 1000
+// TESTMODUS: Advarselstid før utlogging (10 sekunder før)
+const WARNING_TIME = 10 * 1000
 
 // Type-definisjon for auth-kontekst
 // Dette er data som gjøres tilgjengelig for hele appen
