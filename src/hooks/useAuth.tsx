@@ -13,9 +13,12 @@ import { User, Session } from "@supabase/supabase-js"
 // Importerer Supabase-klient
 import { supabase } from "@/lib/supabase"
 import { toast } from "sonner"
+import { SessionWarningDialog } from "@/components/SessionWarningDialog"
 
 // Inaktivitetstid i millisekunder (5 minutter)
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000
+// Advarselstid før utlogging (1 minutt før)
+const WARNING_TIME = 1 * 60 * 1000
 
 // Type-definisjon for auth-kontekst
 // Dette er data som gjøres tilgjengelig for hele appen
@@ -42,9 +45,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   // Admin-status fra database
   const [isAdmin, setIsAdmin] = useState(false)
+  // State for advarselsdialog
+  const [showWarning, setShowWarning] = useState(false)
+  const [secondsRemaining, setSecondsRemaining] = useState(60)
   
-  // Ref for inaktivitetstimer
+  // Refs for timere
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const warningTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Funksjon for å sjekke admin-rolle fra database
   const checkAdminRole = async (userId: string) => {
@@ -63,39 +71,86 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Kaller Supabase signOut - fjerner sesjon fra browser
     await supabase.auth.signOut()
     setIsAdmin(false)
+    setShowWarning(false)
+  }, [])
+
+  // Funksjon for å rydde opp alle timere
+  const clearAllTimers = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current)
+      inactivityTimerRef.current = null
+    }
+    if (warningTimerRef.current) {
+      clearTimeout(warningTimerRef.current)
+      warningTimerRef.current = null
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+      countdownIntervalRef.current = null
+    }
   }, [])
 
   // Funksjon for automatisk utlogging ved inaktivitet
   const handleInactivityLogout = useCallback(async () => {
     if (user) {
+      setShowWarning(false)
       toast.info("Du har blitt logget ut på grunn av inaktivitet")
       await signOut()
     }
   }, [user, signOut])
 
+  // Funksjon for å vise advarsel
+  const showWarningDialog = useCallback(() => {
+    if (!user) return
+    
+    setSecondsRemaining(60)
+    setShowWarning(true)
+    
+    // Start nedtelling
+    countdownIntervalRef.current = setInterval(() => {
+      setSecondsRemaining(prev => {
+        if (prev <= 1) {
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    
+    // Start utloggingstimer (1 minutt)
+    inactivityTimerRef.current = setTimeout(() => {
+      handleInactivityLogout()
+    }, WARNING_TIME)
+  }, [user, handleInactivityLogout])
+
   // Funksjon for å tilbakestille inaktivitetstimer
   const resetInactivityTimer = useCallback(() => {
-    // Fjern eksisterende timer
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current)
-    }
+    // Ikke tilbakestill hvis advarsel vises (bruker må klikke knappen)
+    if (showWarning) return
+    
+    clearAllTimers()
     
     // Start ny timer kun hvis bruker er innlogget
     if (user) {
-      inactivityTimerRef.current = setTimeout(() => {
-        handleInactivityLogout()
-      }, INACTIVITY_TIMEOUT)
+      // Timer for å vise advarsel (4 minutter)
+      warningTimerRef.current = setTimeout(() => {
+        showWarningDialog()
+      }, INACTIVITY_TIMEOUT - WARNING_TIME)
     }
-  }, [user, handleInactivityLogout])
+  }, [user, showWarning, clearAllTimers, showWarningDialog])
+
+  // Funksjon for å forlenge sesjonen
+  const extendSession = useCallback(() => {
+    setShowWarning(false)
+    clearAllTimers()
+    resetInactivityTimer()
+    toast.success("Sesjonen er forlenget")
+  }, [clearAllTimers, resetInactivityTimer])
 
   // Effect: Sett opp aktivitetslyttere for inaktivitetsdeteksjon
   useEffect(() => {
     if (!user) {
-      // Fjern timer hvis bruker ikke er innlogget
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current)
-        inactivityTimerRef.current = null
-      }
+      clearAllTimers()
+      setShowWarning(false)
       return
     }
 
@@ -122,11 +177,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       activityEvents.forEach(event => {
         document.removeEventListener(event, resetInactivityTimer)
       })
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current)
-      }
+      clearAllTimers()
     }
-  }, [user, resetInactivityTimer])
+  }, [user, resetInactivityTimer, clearAllTimers])
 
   // Effect: subscribe til auth-hendelser og sjekk initial sesjon
   useEffect(() => {
@@ -174,6 +227,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{ user, session, loading, isAdmin, signOut }}>
       {children}
+      <SessionWarningDialog
+        open={showWarning}
+        secondsRemaining={secondsRemaining}
+        onExtendSession={extendSession}
+      />
     </AuthContext.Provider>
   )
 }
