@@ -2,6 +2,8 @@
 import {
   useState,
   useEffect,
+  useCallback,
+  useRef,
   createContext,
   useContext,
   ReactNode,
@@ -10,6 +12,10 @@ import {
 import { User, Session } from "@supabase/supabase-js"
 // Importerer Supabase-klient
 import { supabase } from "@/lib/supabase"
+import { toast } from "sonner"
+
+// Inaktivitetstid i millisekunder (5 minutter)
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000
 
 // Type-definisjon for auth-kontekst
 // Dette er data som gjøres tilgjengelig for hele appen
@@ -36,6 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   // Admin-status fra database
   const [isAdmin, setIsAdmin] = useState(false)
+  
+  // Ref for inaktivitetstimer
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Funksjon for å sjekke admin-rolle fra database
   const checkAdminRole = async (userId: string) => {
@@ -48,6 +57,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setIsAdmin(!!data)
   }
+
+  // Funksjon for å logge ut bruker
+  const signOut = useCallback(async () => {
+    // Kaller Supabase signOut - fjerner sesjon fra browser
+    await supabase.auth.signOut()
+    setIsAdmin(false)
+  }, [])
+
+  // Funksjon for automatisk utlogging ved inaktivitet
+  const handleInactivityLogout = useCallback(async () => {
+    if (user) {
+      toast.info("Du har blitt logget ut på grunn av inaktivitet")
+      await signOut()
+    }
+  }, [user, signOut])
+
+  // Funksjon for å tilbakestille inaktivitetstimer
+  const resetInactivityTimer = useCallback(() => {
+    // Fjern eksisterende timer
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current)
+    }
+    
+    // Start ny timer kun hvis bruker er innlogget
+    if (user) {
+      inactivityTimerRef.current = setTimeout(() => {
+        handleInactivityLogout()
+      }, INACTIVITY_TIMEOUT)
+    }
+  }, [user, handleInactivityLogout])
+
+  // Effect: Sett opp aktivitetslyttere for inaktivitetsdeteksjon
+  useEffect(() => {
+    if (!user) {
+      // Fjern timer hvis bruker ikke er innlogget
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current)
+        inactivityTimerRef.current = null
+      }
+      return
+    }
+
+    // Hendelser som indikerer brukeraktivitet
+    const activityEvents = [
+      'mousedown',
+      'mousemove',
+      'keydown',
+      'scroll',
+      'touchstart',
+      'click'
+    ]
+
+    // Start initial timer
+    resetInactivityTimer()
+
+    // Legg til event listeners
+    activityEvents.forEach(event => {
+      document.addEventListener(event, resetInactivityTimer, { passive: true })
+    })
+
+    // Cleanup
+    return () => {
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, resetInactivityTimer)
+      })
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current)
+      }
+    }
+  }, [user, resetInactivityTimer])
 
   // Effect: subscribe til auth-hendelser og sjekk initial sesjon
   useEffect(() => {
@@ -90,13 +169,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Ellers får vi memory leaks
     return () => subscription.unsubscribe()
   }, [])
-
-  // Funksjon for å logge ut bruker
-  const signOut = async () => {
-    // Kaller Supabase signOut - fjerner sesjon fra browser
-    await supabase.auth.signOut()
-    setIsAdmin(false)
-  }
 
   // Gjør auth-data tilgjengelig for alle children via Context
   return (
