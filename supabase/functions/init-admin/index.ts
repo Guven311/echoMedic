@@ -1,10 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Input validation schema
+const initAdminSchema = z.object({
+  deploymentSecret: z.string().min(1, "Deployment-hemmelighet er påkrevd"),
+});
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -12,6 +18,76 @@ serve(async (req) => {
   }
 
   try {
+    // Only allow POST requests
+    if (req.method !== "POST") {
+      return new Response(
+        JSON.stringify({ error: "Kun POST-forespørsler er tillatt" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 405 }
+      );
+    }
+
+    // Parse and validate request body
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Ugyldig JSON i forespørsel" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
+    const validationResult = initAdminSchema.safeParse(body);
+    if (!validationResult.success) {
+      console.error("Validation error:", validationResult.error.errors);
+      return new Response(
+        JSON.stringify({ 
+          error: "Validering feilet",
+          details: validationResult.error.errors.map(e => e.message)
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+
+    // Verify deployment secret
+    const expectedSecret = Deno.env.get("INIT_ADMIN_SECRET");
+    if (!expectedSecret) {
+      console.error("INIT_ADMIN_SECRET not configured");
+      return new Response(
+        JSON.stringify({ error: "Server-konfigurasjon mangler" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
+    }
+
+    const { deploymentSecret } = validationResult.data;
+    
+    // Constant-time comparison to prevent timing attacks
+    const secretBuffer = new TextEncoder().encode(deploymentSecret);
+    const expectedBuffer = new TextEncoder().encode(expectedSecret);
+    
+    if (secretBuffer.length !== expectedBuffer.length) {
+      console.warn("Invalid deployment secret attempt");
+      return new Response(
+        JSON.stringify({ error: "Ugyldig deployment-hemmelighet" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 }
+      );
+    }
+    
+    let isValid = true;
+    for (let i = 0; i < secretBuffer.length; i++) {
+      if (secretBuffer[i] !== expectedBuffer[i]) {
+        isValid = false;
+      }
+    }
+    
+    if (!isValid) {
+      console.warn("Invalid deployment secret attempt");
+      return new Response(
+        JSON.stringify({ error: "Ugyldig deployment-hemmelighet" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 }
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
