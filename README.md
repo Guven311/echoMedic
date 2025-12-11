@@ -57,5 +57,3 @@ Struktur
 
 `src/             React-komponenter og sider
 supabase/        Edge Functions og migrasjoner`
-
-
