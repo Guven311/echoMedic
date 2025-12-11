@@ -46,7 +46,7 @@ serve(async (req) => {
     if (adminEmail && email === adminEmail) {
       console.log("Admin user detected, skipping 2FA");
       return new Response(
-        JSON.stringify({ skip2FA: true, message: "Admin trenger ikke 2FA" }),
+        JSON.stringify({ bypass: true, message: "Admin trenger ikke 2FA" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     }
