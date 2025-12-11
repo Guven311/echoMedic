@@ -1,10 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Input validation schema
+const deleteUserSchema = z.object({
+  userId: z.string()
+    .uuid({ message: "Ugyldig bruker-ID format (må være UUID)" })
+    .trim(),
+});
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -44,8 +52,7 @@ serve(async (req) => {
       );
     }
 
-    // Sjekk admin-tilgang
-    const isAdminEmail = currentUser.email === "admin@admin.no";
+    // Sjekk admin-tilgang via rolle
     const { data: roleData } = await supabaseClient
       .from("user_roles")
       .select("role")
@@ -53,21 +60,27 @@ serve(async (req) => {
       .eq("role", "admin")
       .single();
 
-    if (!isAdminEmail && !roleData) {
+    if (!roleData) {
       return new Response(
         JSON.stringify({ error: "Kun admin kan slette brukere" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 }
       );
     }
 
-    const { userId } = await req.json();
+    // Parse and validate input
+    const rawInput = await req.json();
+    const validationResult = deleteUserSchema.safeParse(rawInput);
 
-    if (!userId) {
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => e.message).join(", ");
+      console.error("Valideringsfeil:", errors);
       return new Response(
-        JSON.stringify({ error: "Bruker-ID er påkrevd" }),
+        JSON.stringify({ error: errors }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
+
+    const { userId } = validationResult.data;
 
     // Ikke tillat sletting av seg selv
     if (userId === currentUser.id) {
@@ -76,6 +89,8 @@ serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
+
+    console.log(`Deleting user: ${userId}`);
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
@@ -88,8 +103,11 @@ serve(async (req) => {
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (deleteError) {
+      console.error("Error deleting user:", deleteError);
       throw deleteError;
     }
+
+    console.log(`User deleted successfully: ${userId}`);
 
     return new Response(
       JSON.stringify({ success: true, message: "Bruker slettet" }),

@@ -1,10 +1,35 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Input validation schema
+const createUserSchema = z.object({
+  email: z.string()
+    .trim()
+    .email({ message: "Ugyldig e-postformat" })
+    .max(255, { message: "E-post kan ikke være lengre enn 255 tegn" })
+    .transform(val => val.toLowerCase()),
+  password: z.string()
+    .min(12, { message: "Passord må være minst 12 tegn" })
+    .max(128, { message: "Passord kan ikke være lengre enn 128 tegn" })
+    .regex(/[A-Z]/, { message: "Passord må inneholde minst én stor bokstav" })
+    .regex(/[a-z]/, { message: "Passord må inneholde minst én liten bokstav" })
+    .regex(/[0-9]/, { message: "Passord må inneholde minst ett tall" })
+    .regex(/[^A-Za-z0-9]/, { message: "Passord må inneholde minst ett spesialtegn" }),
+  fullName: z.string()
+    .trim()
+    .max(100, { message: "Navn kan ikke være lengre enn 100 tegn" })
+    .optional()
+    .default(""),
+  role: z.enum(["admin", "bruker"], { 
+    errorMap: () => ({ message: "Rolle må være 'admin' eller 'bruker'" })
+  }).optional().default("bruker"),
+});
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -37,31 +62,44 @@ serve(async (req) => {
 
     const { data: { user: currentUser } } = await supabaseClient.auth.getUser();
     
-    if (!currentUser || currentUser.email !== "admin@admin.no") {
-      // Sjekk også om brukeren har admin-rolle
-      const { data: roleData } = await supabaseClient
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", currentUser?.id)
-        .eq("role", "admin")
-        .single();
-
-      if (!roleData) {
-        return new Response(
-          JSON.stringify({ error: "Kun admin kan opprette brukere" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 }
-        );
-      }
+    if (!currentUser) {
+      return new Response(
+        JSON.stringify({ error: "Ikke autorisert" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+      );
     }
 
-    const { email, password, fullName, role } = await req.json();
+    // Sjekk admin-tilgang via rolle
+    const { data: roleData } = await supabaseClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", currentUser.id)
+      .eq("role", "admin")
+      .single();
 
-    if (!email || !password) {
+    if (!roleData) {
       return new Response(
-        JSON.stringify({ error: "E-post og passord er påkrevd" }),
+        JSON.stringify({ error: "Kun admin kan opprette brukere" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 }
+      );
+    }
+
+    // Parse and validate input
+    const rawInput = await req.json();
+    const validationResult = createUserSchema.safeParse(rawInput);
+
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(e => e.message).join(", ");
+      console.error("Valideringsfeil:", errors);
+      return new Response(
+        JSON.stringify({ error: errors }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
+
+    const { email, password, fullName, role } = validationResult.data;
+
+    console.log(`Creating user: ${email} with role: ${role}`);
 
     // Bruk service role for å opprette bruker
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -77,23 +115,30 @@ serve(async (req) => {
       password,
       email_confirm: true,
       user_metadata: {
-        full_name: fullName || "",
+        full_name: fullName,
       },
     });
 
     if (createError) {
+      console.error("Error creating user:", createError);
       throw createError;
     }
 
-    // Tildel rolle hvis angitt
-    if (newUser?.user && role) {
-      await supabaseAdmin
+    // Tildel rolle
+    if (newUser?.user) {
+      const { error: roleError } = await supabaseAdmin
         .from("user_roles")
         .upsert({
           user_id: newUser.user.id,
           role: role,
         }, { onConflict: "user_id" });
+
+      if (roleError) {
+        console.error("Error assigning role:", roleError);
+      }
     }
+
+    console.log(`User created successfully: ${newUser?.user?.id}`);
 
     return new Response(
       JSON.stringify({ 
