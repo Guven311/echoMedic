@@ -74,8 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setShowWarning(false)
   }, [])
 
-  // Funksjon for å rydde opp alle timere
-  const clearAllTimers = useCallback(() => {
+  // Funksjon for å rydde opp aktivitetstimere (ikke logout-timer)
+  const clearActivityTimers = useCallback(() => {
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current)
       inactivityTimerRef.current = null
@@ -84,20 +84,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(warningTimerRef.current)
       warningTimerRef.current = null
     }
+  }, [])
+
+  // Funksjon for å rydde opp alle timere inkludert logout
+  const clearAllTimers = useCallback(() => {
+    clearActivityTimers()
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current)
       countdownIntervalRef.current = null
     }
-  }, [])
+  }, [clearActivityTimers])
 
-  // Funksjon for automatisk utlogging ved inaktivitet
-  const handleInactivityLogout = useCallback(async () => {
-    if (user) {
-      setShowWarning(false)
-      toast.info("Du har blitt logget ut på grunn av inaktivitet")
-      await signOut()
-    }
-  }, [user, signOut])
+  // Ref for å lagre logout timer separat fra andre timere
+  const logoutTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Funksjon for å vise advarsel
   const showWarningDialog = useCallback(() => {
@@ -116,18 +115,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
     }, 1000)
     
-    // Start utloggingstimer (1 minutt)
-    inactivityTimerRef.current = setTimeout(() => {
-      handleInactivityLogout()
+    // Start utloggingstimer (1 minutt) - bruk egen ref som ikke ryddes av aktivitetstimer
+    logoutTimerRef.current = setTimeout(async () => {
+      setShowWarning(false)
+      toast.info("Du har blitt logget ut på grunn av inaktivitet")
+      await supabase.auth.signOut()
     }, WARNING_TIME)
-  }, [user, handleInactivityLogout])
+  }, [user])
 
   // Funksjon for å tilbakestille inaktivitetstimer
   const resetInactivityTimer = useCallback(() => {
     // Ikke tilbakestill hvis advarsel vises (bruker må klikke knappen)
     if (showWarning) return
     
-    clearAllTimers()
+    clearActivityTimers()
     
     // Start ny timer kun hvis bruker er innlogget
     if (user) {
@@ -136,11 +137,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         showWarningDialog()
       }, INACTIVITY_TIMEOUT - WARNING_TIME)
     }
-  }, [user, showWarning, clearAllTimers, showWarningDialog])
+  }, [user, showWarning, clearActivityTimers, showWarningDialog])
 
   // Funksjon for å forlenge sesjonen
   const extendSession = useCallback(() => {
     setShowWarning(false)
+    // Rydd opp logout-timer og countdown
+    if (logoutTimerRef.current) {
+      clearTimeout(logoutTimerRef.current)
+      logoutTimerRef.current = null
+    }
     clearAllTimers()
     resetInactivityTimer()
     toast.success("Sesjonen er forlenget")
@@ -149,7 +155,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Effect: Sett opp aktivitetslyttere for inaktivitetsdeteksjon
   useEffect(() => {
     if (!user) {
+      // Rydd opp alle timere når bruker er logget ut
       clearAllTimers()
+      if (logoutTimerRef.current) {
+        clearTimeout(logoutTimerRef.current)
+        logoutTimerRef.current = null
+      }
       setShowWarning(false)
       return
     }
@@ -172,14 +183,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       document.addEventListener(event, resetInactivityTimer, { passive: true })
     })
 
-    // Cleanup
+    // Cleanup - kun fjern event listeners, ikke timere (de håndteres separat)
     return () => {
       activityEvents.forEach(event => {
         document.removeEventListener(event, resetInactivityTimer)
       })
-      clearAllTimers()
+      // Rydd kun aktivitetstimere, ikke logout-timer
+      clearActivityTimers()
     }
-  }, [user, resetInactivityTimer, clearAllTimers])
+  }, [user, resetInactivityTimer, clearAllTimers, clearActivityTimers])
 
   // Effect: subscribe til auth-hendelser og sjekk initial sesjon
   useEffect(() => {
