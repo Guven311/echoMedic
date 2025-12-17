@@ -19,6 +19,8 @@ import Rammeverk from "./pages/Rammeverk"
 import Retningslinjer from "./pages/Retningslinjer"
 import Risiko from "./pages/Risiko"
 import Dokumenter from "./pages/Dokumenter"
+import Trusler from "./pages/Trusler"
+import Sarbarheter from "./pages/Sarbarheter"
 import Verktoy from "./pages/Verktoy"
 import Rapporter from "./pages/Rapporter"
 import Onboarding from "./pages/Onboarding"
@@ -87,6 +89,22 @@ const App = () => (
                 element={
                   <Layout>
                     <Dokumenter />
+                  </Layout>
+                }
+              />
+              <Route
+                path="/trusler"
+                element={
+                  <Layout>
+                    <Trusler />
+                  </Layout>
+                }
+              />
+              <Route
+                path="/sarbarheter"
+                element={
+                  <Layout>
+                    <Sarbarheter />
                   </Layout>
                 }
               />

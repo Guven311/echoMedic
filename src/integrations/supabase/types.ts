@@ -475,6 +475,45 @@ export type Database = {
         }
         Relationships: []
       }
+      risk_analysis_results: {
+        Row: {
+          analysis_results: Json
+          created_at: string
+          file_name: string
+          file_path: string
+          id: string
+          identified_threats: Json | null
+          identified_vulnerabilities: Json | null
+          overall_risk_level: string | null
+          risk_matrix: Json | null
+          user_id: string
+        }
+        Insert: {
+          analysis_results: Json
+          created_at?: string
+          file_name: string
+          file_path: string
+          id?: string
+          identified_threats?: Json | null
+          identified_vulnerabilities?: Json | null
+          overall_risk_level?: string | null
+          risk_matrix?: Json | null
+          user_id: string
+        }
+        Update: {
+          analysis_results?: Json
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          identified_threats?: Json | null
+          identified_vulnerabilities?: Json | null
+          overall_risk_level?: string | null
+          risk_matrix?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       risk_assessments: {
         Row: {
           category: string | null
@@ -585,6 +624,39 @@ export type Database = {
           },
         ]
       }
+      threats: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          severity: string | null
+          source: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          severity?: string | null
+          source?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          severity?: string | null
+          source?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       two_factor_codes: {
         Row: {
           code: string
@@ -673,6 +745,72 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      vulnerabilities: {
+        Row: {
+          affected_systems: string | null
+          created_at: string
+          cve_id: string | null
+          description: string | null
+          discovered_at: string | null
+          id: string
+          owner_user_id: string | null
+          related_framework_id: string | null
+          related_guideline_id: string | null
+          remediation_plan: string | null
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          affected_systems?: string | null
+          created_at?: string
+          cve_id?: string | null
+          description?: string | null
+          discovered_at?: string | null
+          id?: string
+          owner_user_id?: string | null
+          related_framework_id?: string | null
+          related_guideline_id?: string | null
+          remediation_plan?: string | null
+          severity?: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          affected_systems?: string | null
+          created_at?: string
+          cve_id?: string | null
+          description?: string | null
+          discovered_at?: string | null
+          id?: string
+          owner_user_id?: string | null
+          related_framework_id?: string | null
+          related_guideline_id?: string | null
+          remediation_plan?: string | null
+          severity?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vulnerabilities_related_framework_id_fkey"
+            columns: ["related_framework_id"]
+            isOneToOne: false
+            referencedRelation: "frameworks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vulnerabilities_related_guideline_id_fkey"
+            columns: ["related_guideline_id"]
+            isOneToOne: false
+            referencedRelation: "guidelines"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

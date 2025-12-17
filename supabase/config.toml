@@ -3,6 +3,9 @@ project_id = "wybkixbkhgfqcmmrczbl"
 [functions.analyze-document]
 verify_jwt = true
 
+[functions.analyze-risk]
+verify_jwt = true
+
 [functions.init-admin]
 verify_jwt = false
 
