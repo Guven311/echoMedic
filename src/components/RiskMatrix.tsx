@@ -41,7 +41,7 @@ export function RiskMatrix({ probability, consequence, onSelect }: RiskMatrixPro
   const selectedConsIndex = consequence ? levels.indexOf(consequence as typeof levels[number]) : -1;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 flex flex-col items-center">
       <div className="flex">
         {/* Y-akse label */}
         <div className="w-24 flex items-center justify-center">
