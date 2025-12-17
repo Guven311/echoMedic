@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // Importer egendefinerte komponenter for dokumenter
 import { DocumentAnalyzer } from "@/components/DocumentAnalyzer";
+import { RiskAnalyzer } from "@/components/RiskAnalyzer";
 import { DeleteDocumentDialog } from "@/components/DeleteDocumentDialog";
 // Interface for dokumenter fra databasen
 interface Document {
@@ -91,17 +92,23 @@ export default function Dokumenter() {
         </p>
       </div>
 
-      {/* Fane-system: AI-analyse eller dokumentoversikt */}
+      {/* Fane-system: AI-analyse, risikovurdering eller dokumentoversikt */}
       <Tabs defaultValue="analyze" className="space-y-4">
         {/* Fane-knapper */}
         <TabsList>
           <TabsTrigger value="analyze">AI-analyse</TabsTrigger>
+          <TabsTrigger value="risk">Risikovurdering</TabsTrigger>
           <TabsTrigger value="overview">Dokumentoversikt</TabsTrigger>
         </TabsList>
 
         {/* Fane 1: AI-analyse av dokumenter */}
         <TabsContent value="analyze">
           <DocumentAnalyzer guidelines={guidelines} />
+        </TabsContent>
+
+        {/* Fane 2: Risikovurdering */}
+        <TabsContent value="risk">
+          <RiskAnalyzer />
         </TabsContent>
 
         {/* Fane 2: Dokumentoversikt */}

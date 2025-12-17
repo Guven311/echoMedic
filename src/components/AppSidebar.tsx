@@ -38,6 +38,8 @@ const menuItems = [
   { title: "Rammeverk", url: "/rammeverk", icon: FileText },
   { title: "Retningslinjer", url: "/retningslinjer", icon: BookOpen },
   { title: "Risikovurdering", url: "/risiko", icon: AlertTriangle },
+  { title: "Trusler", url: "/trusler", icon: AlertTriangle },
+  { title: "Sårbarheter", url: "/sarbarheter", icon: Shield },
   { title: "Dokumenter", url: "/dokumenter", icon: FolderOpen },
   { title: "Verktøy", url: "/verktoy", icon: Wrench },
   { title: "Rapporter", url: "/rapporter", icon: BarChart3 },
