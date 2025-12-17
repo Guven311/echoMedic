@@ -41,22 +41,22 @@ export function RiskMatrix({ probability, consequence, onSelect }: RiskMatrixPro
   const selectedConsIndex = consequence ? levels.indexOf(consequence as typeof levels[number]) : -1;
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       <div className="flex">
         {/* Y-akse label */}
-        <div className="w-16 flex items-center justify-center">
+        <div className="w-20 flex items-center justify-center">
           <span className="text-xs font-medium text-muted-foreground -rotate-90 whitespace-nowrap">
             Sannsynlighet
           </span>
         </div>
         
         {/* Matrise-grid */}
-        <div className="flex-1 max-w-[200px]">
+        <div className="flex-1 max-w-[280px]">
           {/* Kolonneoverskrifter (Konsekvens) */}
-          <div className="flex mb-0.5">
-            <div className="w-12" /> {/* Tomt hjørne */}
+          <div className="flex mb-1">
+            <div className="w-14" /> {/* Tomt hjørne */}
             {levels.map((level) => (
-              <div key={level} className="flex-1 text-center text-[10px] font-medium text-muted-foreground px-0.5">
+              <div key={level} className="flex-1 text-center text-xs font-medium text-muted-foreground px-0.5">
                 {levelLabels[level]}
               </div>
             ))}
@@ -66,9 +66,9 @@ export function RiskMatrix({ probability, consequence, onSelect }: RiskMatrixPro
           {[...levels].reverse().map((prob, reversedProbIndex) => {
             const probIndex = levels.length - 1 - reversedProbIndex;
             return (
-              <div key={prob} className="flex items-center mb-0.5">
+              <div key={prob} className="flex items-center mb-1">
                 {/* Rad-label */}
-                <div className="w-12 text-[10px] font-medium text-muted-foreground text-right pr-1">
+                <div className="w-14 text-xs font-medium text-muted-foreground text-right pr-2">
                   {levelLabels[prob]}
                 </div>
                 {/* Celler */}
@@ -82,7 +82,7 @@ export function RiskMatrix({ probability, consequence, onSelect }: RiskMatrixPro
                       type="button"
                       onClick={() => onSelect(prob, cons)}
                       className={cn(
-                        "flex-1 aspect-square m-px rounded flex items-center justify-center text-xs font-bold transition-all cursor-pointer",
+                        "flex-1 aspect-square m-0.5 rounded-md flex items-center justify-center text-sm font-bold transition-all cursor-pointer",
                         getRiskColor(score),
                         isSelected && getSelectedColor(score)
                       )}
@@ -96,28 +96,28 @@ export function RiskMatrix({ probability, consequence, onSelect }: RiskMatrixPro
           })}
           
           {/* X-akse label */}
-          <div className="text-center mt-1">
+          <div className="text-center mt-2">
             <span className="text-xs font-medium text-muted-foreground">Konsekvens</span>
           </div>
         </div>
       </div>
       
       {/* Legende */}
-      <div className="flex justify-center gap-2 mt-2 text-[10px]">
-        <div className="flex items-center gap-0.5">
-          <div className="w-3 h-3 rounded bg-green-500" />
+      <div className="flex justify-center gap-3 mt-3 text-xs">
+        <div className="flex items-center gap-1">
+          <div className="w-3.5 h-3.5 rounded bg-green-500" />
           <span>Lav (1-3)</span>
         </div>
-        <div className="flex items-center gap-0.5">
-          <div className="w-3 h-3 rounded bg-yellow-500" />
+        <div className="flex items-center gap-1">
+          <div className="w-3.5 h-3.5 rounded bg-yellow-500" />
           <span>Middels (4-6)</span>
         </div>
-        <div className="flex items-center gap-0.5">
-          <div className="w-3 h-3 rounded bg-orange-500" />
+        <div className="flex items-center gap-1">
+          <div className="w-3.5 h-3.5 rounded bg-orange-500" />
           <span>Høy (8-9)</span>
         </div>
-        <div className="flex items-center gap-0.5">
-          <div className="w-3 h-3 rounded bg-red-500" />
+        <div className="flex items-center gap-1">
+          <div className="w-3.5 h-3.5 rounded bg-red-500" />
           <span>Kritisk (12-16)</span>
         </div>
       </div>
