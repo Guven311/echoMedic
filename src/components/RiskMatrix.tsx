@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+
 interface RiskMatrixProps {
   probability?: string;
   consequence?: string;
@@ -11,7 +12,7 @@ const levelLabels: Record<string, string> = {
   lav: "Lav",
   middels: "Middels",
   hoy: "Høy",
-  kritisk: "Kritisk"
+  kritisk: "Kritisk",
 };
 
 // Beregn risikoscore
@@ -34,25 +35,92 @@ const getSelectedColor = (score: number): string => {
   if (score >= 4) return "ring-4 ring-yellow-700 bg-yellow-600";
   return "ring-4 ring-green-700 bg-green-600";
 };
-export function RiskMatrix({
-  probability,
-  consequence,
-  onSelect
-}: RiskMatrixProps) {
+
+export function RiskMatrix({ probability, consequence, onSelect }: RiskMatrixProps) {
   const selectedProbIndex = probability ? levels.indexOf(probability as typeof levels[number]) : -1;
   const selectedConsIndex = consequence ? levels.indexOf(consequence as typeof levels[number]) : -1;
-  return <div className="space-y-2">
+
+  return (
+    <div className="space-y-2">
       <div className="flex">
         {/* Y-akse label */}
         <div className="w-24 flex items-center justify-center">
-          
+          <span className="text-sm font-medium text-muted-foreground -rotate-90 whitespace-nowrap">
+            Sannsynlighet
+          </span>
         </div>
         
         {/* Matrise-grid */}
-        
+        <div className="flex-1">
+          {/* Kolonneoverskrifter (Konsekvens) */}
+          <div className="flex mb-1">
+            <div className="w-16" /> {/* Tomt hjørne */}
+            {levels.map((level) => (
+              <div key={level} className="flex-1 text-center text-xs font-medium text-muted-foreground px-1">
+                {levelLabels[level]}
+              </div>
+            ))}
+          </div>
+          
+          {/* Rader (fra høyest til lavest sannsynlighet) */}
+          {[...levels].reverse().map((prob, reversedProbIndex) => {
+            const probIndex = levels.length - 1 - reversedProbIndex;
+            return (
+              <div key={prob} className="flex items-center mb-1">
+                {/* Rad-label */}
+                <div className="w-16 text-xs font-medium text-muted-foreground text-right pr-2">
+                  {levelLabels[prob]}
+                </div>
+                {/* Celler */}
+                {levels.map((cons, consIndex) => {
+                  const score = calculateScore(probIndex, consIndex);
+                  const isSelected = probIndex === selectedProbIndex && consIndex === selectedConsIndex;
+                  
+                  return (
+                    <button
+                      key={`${prob}-${cons}`}
+                      type="button"
+                      onClick={() => onSelect(prob, cons)}
+                      className={cn(
+                        "flex-1 aspect-square m-0.5 rounded-md flex items-center justify-center text-sm font-bold transition-all cursor-pointer",
+                        getRiskColor(score),
+                        isSelected && getSelectedColor(score)
+                      )}
+                    >
+                      {score}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+          
+          {/* X-akse label */}
+          <div className="text-center mt-2">
+            <span className="text-sm font-medium text-muted-foreground">Konsekvens</span>
+          </div>
+        </div>
       </div>
       
       {/* Legende */}
-      
-    </div>;
+      <div className="flex justify-center gap-4 mt-4 text-xs">
+        <div className="flex items-center gap-1">
+          <div className="w-4 h-4 rounded bg-green-500" />
+          <span>Lav (1-3)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-4 h-4 rounded bg-yellow-500" />
+          <span>Middels (4-6)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-4 h-4 rounded bg-orange-500" />
+          <span>Høy (8-9)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-4 h-4 rounded bg-red-500" />
+          <span>Kritisk (12-16)</span>
+        </div>
+      </div>
+    </div>
+  );
 }
